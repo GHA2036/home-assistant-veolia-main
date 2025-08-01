@@ -29,6 +29,7 @@ class VeoliaDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(
         self,
         hass: HomeAssistant,
+        config_entry: VeoliaConfigEntry,
     ) -> None:
         """Initialize."""
         super().__init__(
@@ -37,12 +38,31 @@ class VeoliaDataUpdateCoordinator(DataUpdateCoordinator):
             name=DOMAIN,
             update_interval=timedelta(hours=12),
         )
+        self.config_entry = config_entry
         LOGGER.debug("Initializing client VeoliaAPI")
+        LOGGER.debug("Username: %s", self.config_entry.data[CONF_USERNAME])
+        LOGGER.debug("Config entry data keys: %s", list(self.config_entry.data.keys()))
 
-        self.client_api = VeoliaAPI(
-            username=self.config_entry.data[CONF_USERNAME],
-            password=self.config_entry.data[CONF_PASSWORD],
-        )
+        try:
+            self.client_api = VeoliaAPI(
+                username=self.config_entry.data[CONF_USERNAME],
+                password=self.config_entry.data[CONF_PASSWORD],
+            )
+            LOGGER.debug("VeoliaAPI client created successfully")
+        except Exception as e:
+            LOGGER.error("Failed to create VeoliaAPI client: %s", e)
+            raise
+
+    async def test_connection(self) -> bool:
+        """Test the connection to Veolia API."""
+        try:
+            LOGGER.debug("Testing connection to Veolia API...")
+            result = await self.client_api.login()
+            LOGGER.debug("Login test result: %s", result)
+            return result
+        except Exception as e:
+            LOGGER.error("Connection test failed: %s", e)
+            return False
 
     async def _async_update_data(self) -> VeoliaAccountData:
         """Update data via library."""
@@ -52,9 +72,18 @@ class VeoliaDataUpdateCoordinator(DataUpdateCoordinator):
                 f"Fetching consumption data for {ConsumptionType.MONTHLY.value} "
                 f"Year:{now.year} Month:{now.month}",
             )
+            LOGGER.debug("About to call fetch_all_data...")
             await self.client_api.fetch_all_data(now.year, now.month)
+            LOGGER.debug("fetch_all_data completed successfully")
             LOGGER.debug("Data fetched successfully = %s", self.client_api.account_data)
         except VeoliaAPIError as exception:
+            LOGGER.error("VeoliaAPIError occurred: %s", exception)
+            LOGGER.error("Exception type: %s", type(exception).__name__)
             raise ConfigEntryAuthFailed(exception) from exception
+        except Exception as exception:
+            LOGGER.error("Unexpected error during data fetch: %s", exception)
+            LOGGER.error("Exception type: %s", type(exception).__name__)
+            raise
         else:
+            LOGGER.debug("Returning account data: %s", self.client_api.account_data)
             return self.client_api.account_data

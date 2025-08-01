@@ -1,0 +1,7 @@
+# Ajoutez cette section à votre configuration.yaml de Home Assistant
+logger:
+  default: warning
+  logs:
+    custom_components.veolia: debug
+    veolia_api: debug
+    homeassistant.helpers.update_coordinator: debug

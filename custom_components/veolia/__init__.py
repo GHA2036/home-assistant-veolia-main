@@ -7,7 +7,7 @@ from homeassistant.helpers import device_registry as dr
 import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN
+from .const import DOMAIN, LOGGER
 from .coordinator import VeoliaDataUpdateCoordinator
 from .data import VeoliaConfigEntry, VeoliaData
 from .sensor import LastIndexSensor
@@ -29,7 +29,16 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass, entry):
     """Set up Veolia from a config entry."""
-    coordinator = VeoliaDataUpdateCoordinator(hass)
+    coordinator = VeoliaDataUpdateCoordinator(hass, entry)
+    
+    # Test the connection first
+    LOGGER.info("Testing Veolia API connection...")
+    connection_ok = await coordinator.test_connection()
+    if not connection_ok:
+        LOGGER.error("Failed to connect to Veolia API - check credentials and network")
+        return False
+    
+    LOGGER.info("Veolia API connection successful")
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})
